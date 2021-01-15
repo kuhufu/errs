@@ -6,21 +6,79 @@ import (
 	"runtime"
 )
 
+const (
+	TypeCustom   = ErrType(1)
+	TypeInternal = ErrType(2)
+	TypeParam    = ErrType(3)
+	TypeBusiness = ErrType(4)
+)
+
+type ErrType int
+
+var strMap = map[ErrType]string{
+	TypeCustom:   "Custom",
+	TypeInternal: "Internal",
+	TypeParam:    "Param",
+	TypeBusiness: "Business",
+}
+
+func (t ErrType) String() string {
+	return strMap[t]
+}
+
+type Errors interface {
+	error
+	Code() int
+	Data() interface{}
+	Type() ErrType
+}
+
+type Error struct {
+	typ  ErrType
+	code int
+	data interface{}
+	err  error
+}
+
+func (e Error) Code() int {
+	return e.code
+}
+
+func (e Error) Data() interface{} {
+	return e.data
+}
+
+func (e Error) Error() string {
+	return e.err.Error()
+}
+
+func (e Error) Type() ErrType {
+	return e.typ
+}
+
+func (e Error) UnWrap() error {
+	if err := errors.Unwrap(e.err); err != nil {
+		return err
+	}
+	return e.err
+}
+
+func (e Error) String() string {
+	return fmt.Sprintf("type: %s, code: %v, err: %v", e.typ, e.code, e.err.Error())
+}
+
 func Param(s interface{}, code ...int) error {
 	c := 400
 	if len(code) > 0 {
 		c = code[0]
 	}
 
-	switch s := s.(type) {
-	case error:
-		if IsBuiltinErrs(s) {
-			return s
-		}
-		return &ErrParam{Code: c, err: s}
-	default:
-		return &ErrParam{Code: c, err: errors.New(fmt.Sprintf("%v", s))}
+	err, ok := s.(error)
+	if !ok {
+		err = errors.New(fmt.Sprintf("%v", s))
 	}
+
+	return custom(err, c, nil, TypeParam)
 }
 
 func Internal(s interface{}, code ...int) error {
@@ -30,16 +88,12 @@ func Internal(s interface{}, code ...int) error {
 	}
 
 	_, file, line, _ := runtime.Caller(1) //1表示取上一个函数栈的信息
-
-	switch s := s.(type) {
-	case error:
-		if IsBuiltinErrs(s) {
-			return s
-		}
-		return &ErrInternal{Code: c, err: errors.New(fmt.Sprintf("file: %v:%v [ %v ]", file, line, s))}
-	default:
-		return &ErrInternal{Code: c, err: errors.New(fmt.Sprintf("file: %v:%v [ %v ]", file, line, s))}
+	err, ok := s.(error)
+	if !ok {
+		err = errors.New(fmt.Sprintf("file: %v:%v [ %v ]", file, line, s))
 	}
+
+	return custom(err, c, nil, TypeInternal)
 }
 
 func Business(s interface{}, code ...int) error {
@@ -48,129 +102,32 @@ func Business(s interface{}, code ...int) error {
 		c = code[0]
 	}
 
-	switch s := s.(type) {
-	case error:
-		if IsBuiltinErrs(s) {
-			return s
-		}
-		return &ErrBusiness{Code: c, err: s}
-	default:
-		return &ErrBusiness{Code: c, err: errors.New(fmt.Sprintf("%v", s))}
+	err, ok := s.(error)
+	if !ok {
+		err = errors.New(fmt.Sprintf("%v", s))
 	}
 
+	return custom(err, c, nil, TypeBusiness)
 }
 
-func Custom(s interface{}, code int, data ...interface{}) error {
-	var tmpData interface{}
-	if len(data) > 0 {
-		tmpData = data[0]
+func Custom(s interface{}, code int, data interface{}) error {
+	err, ok := s.(error)
+	if !ok {
+		err = errors.New(fmt.Sprintf("%v", s))
 	}
 
-	switch s := s.(type) {
-	case error:
-		if IsBuiltinErrs(s) {
-			return s
-		}
-		return &ErrCustom{Code: code, err: s, Data: tmpData}
-	default:
-		return &ErrCustom{Code: code, err: errors.New(fmt.Sprintf("%v", s)), Data: tmpData}
-	}
-
+	return custom(err, code, data, TypeCustom)
 }
 
-type ErrCustom struct {
-	Code int
-	Data interface{}
-	err  error
-}
-
-func (p *ErrCustom) Error() string {
-	return p.err.Error()
-}
-
-func (p *ErrCustom) UnWrap() error {
-	if err := errors.Unwrap(p.err); err != nil {
+func custom(err error, code int, data interface{}, typ ErrType) error {
+	if IsBuiltinErrs(err) {
 		return err
 	}
-	return p.err
-}
 
-type ErrParam struct {
-	Code int
-	err  error
-}
-
-func (p *ErrParam) Error() string {
-	return p.err.Error()
-}
-
-func (p *ErrParam) UnWrap() error {
-	if err := errors.Unwrap(p.err); err != nil {
-		return err
-	}
-	return p.err
-}
-
-type ErrInternal struct {
-	Code int
-	err  error
-}
-
-func (p *ErrInternal) Error() string {
-	return p.err.Error()
-}
-
-func (p *ErrInternal) UnWrap() error {
-	if err := errors.Unwrap(p.err); err != nil {
-		return err
-	}
-	return p.err
-}
-
-type ErrBusiness struct {
-	Code int
-	err  error
-}
-
-func (p *ErrBusiness) Error() string {
-	return p.err.Error()
-}
-
-func (p *ErrBusiness) UnWrap() error {
-	if err := errors.Unwrap(p.err); err != nil {
-		return err
-	}
-	return p.err
-}
-
-var (
-	errInternal = &ErrInternal{}
-	errParam    = &ErrParam{}
-	errBusiness = &ErrBusiness{}
-	errCustom   = &ErrCustom{}
-)
-
-func IsErrParam(err error) bool {
-	return errors.As(err, &errParam)
-}
-
-func IsErrInternal(err error) bool {
-	return errors.As(err, &errInternal)
-}
-
-func IsErrBusiness(err error) bool {
-	return errors.As(err, &errBusiness)
-}
-
-func IsErrCustom(err error) bool {
-	return errors.As(err, &errCustom)
+	return Error{code: code, err: err, data: data, typ: typ}
 }
 
 func IsBuiltinErrs(err error) bool {
-	switch {
-	case IsErrBusiness(err), IsErrInternal(err), IsErrParam(err), IsErrCustom(err):
-		return true
-	default:
-		return false
-	}
+	_, ok := err.(Errors)
+	return ok
 }
