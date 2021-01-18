@@ -88,10 +88,7 @@ func Internal(s interface{}, code ...int) error {
 	}
 
 	_, file, line, _ := runtime.Caller(1) //1表示取上一个函数栈的信息
-	err, ok := s.(error)
-	if !ok {
-		err = errors.New(fmt.Sprintf("file: %v:%v [ %v ]", file, line, s))
-	}
+	err := errors.New(fmt.Sprintf("file: %v:%v [ %v ]", file, line, s))
 
 	return custom(err, c, nil, TypeInternal)
 }
