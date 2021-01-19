@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	TypeCustom   = ErrType(1)
-	TypeInternal = ErrType(2)
-	TypeParam    = ErrType(3)
-	TypeBusiness = ErrType(4)
+	TypeCustom = ErrType(iota + 1)
+	TypeInternal
+	TypeParam
+	TypeBusiness
 )
 
 type ErrType int
