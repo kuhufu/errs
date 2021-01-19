@@ -33,37 +33,37 @@ type Errors interface {
 	Type() ErrType
 }
 
-type Error struct {
+type err struct {
 	typ  ErrType
 	code int
 	data interface{}
 	err  error
 }
 
-func (e Error) Code() int {
+func (e err) Code() int {
 	return e.code
 }
 
-func (e Error) Data() interface{} {
+func (e err) Data() interface{} {
 	return e.data
 }
 
-func (e Error) Error() string {
+func (e err) Error() string {
 	return e.err.Error()
 }
 
-func (e Error) Type() ErrType {
+func (e err) Type() ErrType {
 	return e.typ
 }
 
-func (e Error) UnWrap() error {
+func (e err) UnWrap() error {
 	if err := errors.Unwrap(e.err); err != nil {
 		return err
 	}
 	return e.err
 }
 
-func (e Error) String() string {
+func (e err) String() string {
 	return fmt.Sprintf("type: %s, code: %v, err: %v", e.typ, e.code, e.err.Error())
 }
 
@@ -116,12 +116,12 @@ func Custom(s interface{}, code int, data interface{}) error {
 	return custom(err, code, data, TypeCustom)
 }
 
-func custom(err error, code int, data interface{}, typ ErrType) error {
-	if IsBuiltinErrs(err) {
-		return err
+func custom(e error, code int, data interface{}, typ ErrType) error {
+	if IsBuiltinErrs(e) {
+		return e
 	}
 
-	return Error{code: code, err: err, data: data, typ: typ}
+	return err{code: code, err: e, data: data, typ: typ}
 }
 
 func IsBuiltinErrs(err error) bool {
